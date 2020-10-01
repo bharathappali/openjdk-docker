@@ -708,10 +708,19 @@ EOI
 
 run_scc_gen() {
     if [[ "${vm}" == "openj9" && "${os_family}" != "windows" ]]; then
-        cat >> "$1" <<-EOI
-        RUN /scripts/generate_openj9_scc.sh
-        ENV OPENJ9_JAVA_OPTIONS="-Xshareclasses:name=openj9_system_scc,cacheDir=/opt/java/.scc,readonly,nonFatal"
+        if [[ "${os_family}" == "alpine" ]]; then
+            cat >> "$1" <<-EOI
+RUN apk add --no-cache --virtual .build-deps bash curl binutils \\
+    && /scripts/generate_openj9_scc.sh \\
+    && apk del --purge .build-deps \\
+    && rm -rf /var/cache/apk/*
 EOI
+        else
+        cat >> "$1" <<-EOI
+RUN /scripts/generate_openj9_scc.sh
+ENV OPENJ9_JAVA_OPTIONS="-Xshareclasses:name=openj9_system_scc,cacheDir=/opt/java/.scc,readonly,nonFatal"
+EOI
+        fi
     fi
 }
 
@@ -741,10 +750,10 @@ generate_dockerfile() {
 	print_"${os_family}"_pkg "${file}";
 	print_env "${file}" "${bld}" "${btype}";
 	copy_slim_script "${file}";
+    copy_scc_script "${file}";
 	print_"${os_family}"_java_install "${file}" "${pkg}" "${bld}" "${btype}";
 	print_java_env "${file}" "${bld}" "${btype}" "${os_family}";
 	print_java_options "${file}" "${bld}" "${btype}";
-	copy_scc_script "${file}";
 	run_scc_gen "${file}";
 	print_cmd "${file}";
 	echo "done"
