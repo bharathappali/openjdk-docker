@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.2
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.3
 
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
@@ -38,20 +38,20 @@ RUN set -eux; \
     ARCH="$(uname -m)"; \
     case "${ARCH}" in \
        aarch64|arm64) \
-         ESUM='7be9d3b06cd1e85708003ae88a9b188200ea2fb0032f6d3597d0a40b684bbfa8'; \
-         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-10-23-08-51/OpenJDK11U-jre_aarch64_linux_openj9_2020-10-23-08-51.tar.gz'; \
+         ESUM='0ca09e3eb4ebb48a9919e1773031ce9cb1f8238505fb111056514e657993380c'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-11-27-16-31/OpenJDK11U-jre_aarch64_linux_openj9_2020-11-27-16-31.tar.gz'; \
          ;; \
        ppc64el|ppc64le) \
-         ESUM='716acde349f5c1c7ec3f9d587fb3854fe1819c6f75ddc80b2df76eb960ab79fe'; \
-         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-10-23-08-51/OpenJDK11U-jre_ppc64le_linux_openj9_2020-10-23-08-51.tar.gz'; \
+         ESUM='89667c67a84e12394269cfaa7da5ce8742f16aeea622dd9cda826c14f4fe2205'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-11-27-16-31/OpenJDK11U-jre_ppc64le_linux_openj9_2020-11-27-16-31.tar.gz'; \
          ;; \
        s390x) \
-         ESUM='4a90d546a0ec27864ab45e9fcfb95e3e720be50962402777976b34e897da61a7'; \
-         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-10-23-08-51/OpenJDK11U-jre_s390x_linux_openj9_2020-10-23-08-51.tar.gz'; \
+         ESUM='1b80183e7854de183a494c8ad3c99d2846b48a4bf62526f5631f0781266b09ce'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-11-27-16-31/OpenJDK11U-jre_s390x_linux_openj9_2020-11-27-16-31.tar.gz'; \
          ;; \
        amd64|x86_64) \
-         ESUM='3ed8a8d1b7ffe4b69b188df2d644765622c4c5252c65911dd4465bb73c28ef3f'; \
-         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-10-23-08-51/OpenJDK11U-jre_x64_linux_openj9_2020-10-23-08-51.tar.gz'; \
+         ESUM='ff6eacf23237ffd634cb134d2916250b705c801e76cd165e08a5d2f8b71c0c01'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk11u-2020-11-27-16-31/OpenJDK11U-jre_x64_linux_openj9_2020-11-27-16-31.tar.gz'; \
          ;; \
        *) \
          echo "Unsupported arch: ${ARCH}"; \
@@ -67,7 +67,7 @@ RUN set -eux; \
 
 ENV JAVA_HOME=/opt/java/openjdk \
     PATH="/opt/java/openjdk/bin:$PATH"
-ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+IdleTuningGcOnIdle"
+ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+IdleTuningGcOnIdle -Xshareclasses:name=openj9_system_scc,cacheDir=/opt/java/.scc,readonly,nonFatal"
 
 # Create OpenJ9 SharedClassCache (SCC) for bootclasses to improve the java startup.
 # Downloads and runs tomcat to generate SCC for bootclasses at /opt/java/.scc/openj9_system_scc
@@ -76,9 +76,11 @@ ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+IdleTuningGcOnIdle"
 # Application classes can be create a separate cache layer with this as the base for further startup improvement
 
 RUN set -eux; \
+    microdnf update; \
+    microdnf install -y procps; \
     unset OPENJ9_JAVA_OPTIONS; \
     SCC_SIZE="50m"; \
-    SCC_GEN_RUNS_COUNT=3; \
+    SCC_GEN_RUNS_COUNT=2; \
     DOWNLOAD_PATH_TOMCAT=/tmp/tomcat; \
     INSTALL_PATH_TOMCAT=/opt/tomcat-home; \
     TOMCAT_CHECKSUM="0db27185d9fc3174f2c670f814df3dda8a008b89d1a38a5d96cbbe119767ebfb1cf0bce956b27954aee9be19c4a7b91f2579d967932207976322033a86075f98"; \
@@ -96,7 +98,7 @@ RUN set -eux; \
     do \
         "${INSTALL_PATH_TOMCAT}"/bin/startup.sh; \
         sleep 5; \
-        "${INSTALL_PATH_TOMCAT}"/bin/shutdown.sh; \
+        kill -9 $(ps -ef | grep 'catalina' | tr -s ' ' | cut -d ' ' -f 2 | head -n 2 | tail -n 1); \
         sleep 5; \
     done; \
     \
@@ -114,7 +116,7 @@ RUN set -eux; \
     do \
         "${INSTALL_PATH_TOMCAT}"/bin/startup.sh; \
         sleep 5; \
-        "${INSTALL_PATH_TOMCAT}"/bin/shutdown.sh; \
+        kill -9 $(ps -ef | grep 'catalina' | tr -s ' ' | cut -d ' ' -f 2 | head -n 2 | tail -n 1); \
         sleep 5; \
     done; \
     \
@@ -125,7 +127,7 @@ RUN set -eux; \
           chmod -R 0777 /opt/java/.scc; \
     fi; \
     \
+    microdnf remove -y procps-ng; \
+    microdnf clean all; \
     echo "SCC generation phase completed";
-
-ENV OPENJ9_JAVA_OPTIONS="-Xshareclasses:name=openj9_system_scc,cacheDir=/opt/java/.scc,readonly,nonFatal"
 
